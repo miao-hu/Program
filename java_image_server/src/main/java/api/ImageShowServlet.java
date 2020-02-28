@@ -11,10 +11,23 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.HashSet;
 
 public class ImageShowServlet extends HttpServlet {
+    static private HashSet<String> whiteList=new HashSet<>();
+    static{
+        whiteList.add("http://127.0.0.1:8080/java_image_server/index.html");
+        //你想要哪个网站可以访问你的图片，在 whiteList 中添加一下即可
+    }
+
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+        String referer=req.getHeader("Referer");
+        if(!whiteList.contains(referer)){
+            resp.setContentType("application/json; charset=utf-8");
+            resp.getWriter().write("{ \"ok\":false,\"reason\":\"该网站未授权访问\" }");
+            return;
+        }
         // 1.从请求中解析出 imageId
         String imageId=req.getParameter("imageId");
         if(imageId==null||imageId.equals("")){
