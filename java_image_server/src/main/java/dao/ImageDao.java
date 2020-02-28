@@ -176,4 +176,42 @@ public class ImageDao {
         ImageDao imageDao=new ImageDao();
         imageDao.delete(1);
     }
+
+    /**
+     *  按照 md5 来查找数据库中的 图片
+     * @param md5
+     * @return
+     */
+    public Image selectByMd5(String md5){
+        // 1.获取数据库连接
+        Connection connection=DBUtil.getConnection();
+        // 2.创建并拼装 SQL 语句
+        String sql="select * from image_table where md5 = ?";
+        PreparedStatement statement=null;
+        ResultSet resultSet=null;
+        try {
+            // 3.执行 SQL 语句
+            statement=connection.prepareStatement(sql);
+            statement.setString(1,md5);    //md5 在数据库中是按字符串形式存储的
+            resultSet=statement.executeQuery();
+            // 4.处理结果集
+            if(resultSet.next()){
+                Image image=new Image();
+                image.setImageId(resultSet.getInt("imageId"));
+                image.setImageName(resultSet.getString("imageName"));
+                image.setSize(resultSet.getInt("size"));
+                image.setUploadTime(resultSet.getString("uploadTime"));
+                image.setContentType(resultSet.getString("contentType"));
+                image.setPath(resultSet.getString("path"));
+                image.setMd5(resultSet.getString("md5"));
+                return image;
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }finally {
+            // 5.关闭连接和statement对象
+            DBUtil.close(connection,statement,resultSet);
+        }
+        return null;
+    }
 }
