@@ -1,13 +1,16 @@
 package dao;
 
+/**
+ *  一个 Image 对象：和数据库表的设计相对应
+ */
 public class Image {
     private int imageId;
     private String imageName;
     private int size;
-    private String uploadTime;
-    private String contentType;
-    private String path;
-    private String md5;
+    private String uploadTime;    //图片上传时间
+    private String contentType;   //图片的格式：image.jpg/image.png 等等
+    private String path;           //图片应该往磁盘写的位置
+    private String md5;            //校验和机制（用于判断两张图片的内容是否相同）
 
     public int getImageId() {
         return imageId;
