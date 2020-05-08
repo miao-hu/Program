@@ -4,7 +4,7 @@ import java.sql.SQLException;
 import javax.sql.DataSource;
 
 public class DBConfig {
-    //饿汉模式的单例
+    //饿汉模式的单例（起初就创建好）
     private static final DataSource dataSource;
 
     static {
@@ -20,7 +20,7 @@ public class DBConfig {
         dataSource = mysqlDataSource;
     }
 
-    //得到一个数据库连接
+    //返回数据库连接
     public static Connection getConnection() throws SQLException {
         return dataSource.getConnection();
     }
