@@ -11,7 +11,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 /*
-    统计作者对应的诗词数量
+    统计作者对应的诗词数量（柱状图）
  */
 public class RankServlet extends HttpServlet {
 
@@ -22,24 +22,30 @@ public class RankServlet extends HttpServlet {
         //是否带有参数
         String condition = req.getParameter("condition");
         if (condition == null) {
-            condition = "8";   //默认为 5
+            condition = "8";   //默认为 8
         }
 
         JSONArray jsonArray = new JSONArray();
 
         try {
-            Connection connection = DBConfig.getConnection();   //得到数据库连接
+            //得到数据库连接
+            Connection connection = DBConfig.getConnection();
+
+            //创建 PreparedStatement 对象
             String sql = "SELECT author, count(*) cnt FROM tangshi GROUP BY author HAVING cnt >= ? ORDER BY cnt DESC";  //降序
             PreparedStatement statement = connection.prepareStatement(sql);
-            statement.setString(1, condition);
-            ResultSet resultSet = statement.executeQuery();     //返回结果集
+            statement.setString(1, condition);   //第一个占位符的附加条件
 
-            while(resultSet.next()) {    //结果集中有数据
+            //返回结果集
+            ResultSet resultSet = statement.executeQuery();
+
+            while(resultSet.next()) {    //结果集中还有数据
                 String author = resultSet.getString("author");    //作者姓名
                 int count = resultSet.getInt("cnt");              //对应的诗词数量
                 JSONArray item = new JSONArray();
                 item.add(author);
                 item.add(count);
+
                 jsonArray.add(item);
             }
 
