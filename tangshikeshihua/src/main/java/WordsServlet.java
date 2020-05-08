@@ -14,7 +14,7 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 /*
-    统计每个分词的数量
+    统计每个词的数量（词云图）
  */
 public class WordsServlet extends HttpServlet {
 
@@ -22,21 +22,26 @@ public class WordsServlet extends HttpServlet {
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         resp.setContentType("application/json; charset=utf-8");
 
-        Map<String, Integer> map = new HashMap();   //存放    词:词的数量
+        Map<String, Integer> map = new HashMap();   //存放内容为    词:词的数量
         JSONArray jsonArray = new JSONArray();
 
         try {
-            Connection connection = DBConfig.getConnection();       //得到数据库连接
+            //得到数据库连接
+            Connection connection = DBConfig.getConnection();
+
+            //创建 PreparedStatement 对象
             String sql = "SELECT words  FROM tangshi";             //查询所有的词
             PreparedStatement statement = connection.prepareStatement(sql);
-            ResultSet resultSet = statement.executeQuery();         //返回查询结果集
+
+            //返回查询结果集
+            ResultSet resultSet = statement.executeQuery();
 
             while (resultSet.next()) {    //当结果集中还有数据时
-                String word = resultSet.getString("words");    //一首诗的所有词
+                String word = resultSet.getString("words");    //每一行的数据就是一首诗的所有词
                 String[] arr = word.split(",");    //一首诗的所有词都放在了 arr 数组里面
 
                 for (int i = 0; i < arr.length; i++) {
-                    String s = arr[i];
+                    String s = arr[i];   //词
                     int count = 0;
                     if (map.get(s) == null) {
                         count = count + 1;
@@ -47,15 +52,17 @@ public class WordsServlet extends HttpServlet {
                 }
             }
             for (Map.Entry<String, Integer> e : map.entrySet()) {
-                String s = e.getKey();
-                int count = e.getValue();
+                String s = e.getKey();       //词
+                int count = e.getValue();    //词的数量
+
                 JSONArray item = new JSONArray();
                 item.add(s);
                 item.add(count);
+
                 jsonArray.add(item);
             }
 
-            resp.getWriter().println(jsonArray.toJSONString());   //返回所有词和词的数量的 json 格式的字符串
+            resp.getWriter().println(jsonArray.toJSONString());   //返回所有 词和词的数量 的 json 格式的字符串
 
             resultSet.close();   //关闭结果集
             statement.close();   //关闭 statement
