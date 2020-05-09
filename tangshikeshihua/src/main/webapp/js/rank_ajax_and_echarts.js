@@ -5,16 +5,16 @@ $.ajax(
         dataType: "json",     // 返回的数据当成什么格式解析
         success: function (data) {  // 成功后，执行什么方法
             var names = [];     // 诗人
-            var counts = [];    // 数量
+            var counts = [];    // 创作数量
 
-            // data 中存放的是 json 格式内容
+            // data 中存放的是 json 格式的内容（响应内容）
             for (var i in data) {
-                names.push(data[i][0]);      //杜甫
-                counts.push(data[i][1]);     //39
+                names.push(data[i][0]);      //杜甫，李白
+                counts.push(data[i][1]);     //39，20
             }
 
             console.log(names);      //控制台输出所有诗人的姓名
-            console.log(counts);     //控制台输出所有诗人的诗词数量
+            console.log(counts);     //控制台输出所有诗人的创作数量
 
             var myChart = echarts.init(document.getElementById('main'));
 
@@ -28,13 +28,13 @@ $.ajax(
                 },
                 // 横坐标
                 xAxis: {
-                    data: names   //所有作者的姓名
+                    data: names     //所有作者的姓名
                 },
                 yAxis: {},
                 series: [
                     {
                         name: '数量',
-                        type: 'bar',    // bar 代表柱状图
+                        type: 'bar',     // bar 代表柱状图
                         //渐变色颜色
                         itemStyle: {
                             color: new echarts.graphic.LinearGradient(
@@ -58,12 +58,13 @@ $.ajax(
                                 )
                             }
                         },
-                        data: counts   // 作者对应的诗词数量
+                        data: counts    // 作者对应的创作数量
                     }
                 ]
             };
 
-            myChart.setOption(option);   //图表展示
+            //使用刚指定过的配置项和数据填充图表
+            myChart.setOption(option);
         }
     }
 );
