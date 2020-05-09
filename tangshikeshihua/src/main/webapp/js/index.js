@@ -4,14 +4,14 @@ var rank= function() {
             method: "get",        // 发起 ajax 请求时，使用什么 http 方法
             url: "rank.json",     // 请求哪个 url   (此 url 调用 RankServlet)
             dataType: "json",     // 返回的数据当成什么格式解析
-            success: function (data) {  // 成功后，执行什么方法
+            success: function (data) {    // 成功后，执行什么方法
                 var names = [];     // 诗人
-                var counts = [];    // 数量
+                var counts = [];    // 对应的创作的数量
 
-                // data 中存放的是 json 格式内容
+                // data 中存放的是 json 格式的内容 （响应内容）
                 for (var i in data) {
-                    names.push(data[i][0]);      //杜甫
-                    counts.push(data[i][1]);     //39
+                    names.push(data[i][0]);      //杜甫，李白
+                    counts.push(data[i][1]);     //39，21
                 }
 
                 console.log(names);      //控制台输出所有诗人的姓名
@@ -59,12 +59,13 @@ var rank= function() {
                                     )
                                 }
                             },
-                            data: counts   // 作者对应的诗词数量
+                            data: counts   // 作者对应的创作数量
                         }
                     ]
                 };
 
-                myChart.setOption(option,true);   //图表展示
+                //使用刚指定过的配置项和数据填充图表
+                myChart.setOption(option,true);
             }
         }
     );
@@ -72,27 +73,29 @@ var rank= function() {
 
 var words = function () {
     $.ajax({
-        method: "get",            // 发起 ajax 请求时，使用什么 http 方法
+        method: "get",             // 发起 ajax 请求时，使用什么 http 方法
         url: "words.json",         // 请求哪个 url   (此 url 调用 WordsServlet)
         dataType: "json",          // 返回的数据当成什么格式解析
         success: function (jsonData) {
-            var myChart = echarts.init(document.getElementById('main'));     //初始化图表的画布
-
             var data = [];     //数组里面存放的内容：{“词”，“数量”}
-            //请求返回的数据是 jsonData
+
+            //请求返回的数据是 jsonData （响应内容）
             for (var i in jsonData) {
                 var word = jsonData[i][0];   //词
-                var count = jsonData[i][1];  //数量
+                var count = jsonData[i][1];  //对应的数量
+
                 data.push({
                     name: word,     //词的内容
                     value: count,   //该词的数量
-                    textStyle: {
+                    textStyle: {   //显示样式
                         normal: {},
                         emphasis: {}
                     }
                 });
             }
             console.log(data);   //控制台打印
+
+            var myChart = echarts.init(document.getElementById('main'));     //初始化图表的画布
 
             var option = {
                 series: [{
@@ -126,11 +129,12 @@ var words = function () {
                             shadowColor: '#333'
                         }
                     },
-                    data: data
+                    data: data   //data 就是所有的词以及它们对应的数量
                 }]
             };
 
-            myChart.setOption(option,true);   //图表展示
+            //使用刚指定过的配置项和数据填充图表
+            myChart.setOption(option,true);
         }
     });
 }
