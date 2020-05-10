@@ -2,16 +2,20 @@
 <html lang="zh-hans">
 <head>
     <meta charset="UTF-8">
+
     <!-- 网页的标题-->
     <title>唐诗可视化</title>
 </head>
 <body>
     <!-- 网页醒目的标题-->
     <h1>唐诗可视化</h1>
+
+    <!-- 两个按钮 -->
     <div>
         <input type="button" value="著作数量排行榜" onclick="rank()">
         <input type="button" value="分词云图" onclick="words()">
     </div>
+
     <div id="main" style="width: 800px;height:500px; position: absolute; "></div>     <!-- id="main" 一定要在 src=js/index.js 前-->
     <script src="js/jquery-3.3.1.min.js"></script>
     <script src="js/echarts.min.js"></script>
