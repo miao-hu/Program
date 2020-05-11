@@ -5,7 +5,7 @@
     提取诗词信息（标题，作者，内容），计算 sha256 的值，计算分词，数据存到数据库，交给线程池中的线程去做（因为 320 首唐诗每一首都要走一遍这个流程）
     MessageDigest 不是线程安全的：每个线程创建自己的 MessageDigest 对象就可以保证使用时是安全的
 
-    改进：① 如果是插入重复的数据，则忽略错误，不报错，不打印错误信息
+    改进：① 规定如果是插入重复的数据，则忽略错误，不报错，不打印错误信息
           ②进程无法结束，鼠标一直在闪动
           ----JVM 结束的条件：所有的非后台线程结束，才会结束
               而线程池中的线程是不会结束的
@@ -44,7 +44,7 @@ public class ThreadPoolCatch2 {
     private static AtomicInteger failureCount=new AtomicInteger(0);   //原子类
 
     private static class Job implements Runnable{
-        private String url;                      // 详情页的完整 url
+        private String url;                      // 详情页的 url
         private DataSource dataSource;          // 数据库数据源（不想多次初始化，从主线程中直接传）
 
         public Job(String url , DataSource dataSource ) {
@@ -53,14 +53,16 @@ public class ThreadPoolCatch2 {
         }
 
         public void run(){
-            WebClient webClient=new WebClient(BrowserVersion.CHROME);
             // WebClient 不是线程安全的，每个线程创建自己的 WebClient 就可以保证使用时是安全的
+            WebClient webClient=new WebClient(BrowserVersion.CHROME);
             webClient.getOptions().setJavaScriptEnabled(false);
             webClient.getOptions().setCssEnabled(false);
 
             try{
-                MessageDigest messageDigest=MessageDigest.getInstance("SHA-256");    // sha-256 哈希算法
-                HtmlPage page=webClient.getPage(url);  // 请求详情页
+                MessageDigest messageDigest=MessageDigest.getInstance("SHA-256");    // SHA-256 哈希算法
+                //MessageDigest 不是线程安全的，每个线程创建自己的 MessageDigest 对象就可以保证使用时是安全的
+
+                HtmlPage page=webClient.getPage(url);    // 请求详情页
                 String xpath;
                 DomText domText;
 
@@ -84,11 +86,12 @@ public class ThreadPoolCatch2 {
                 HtmlElement element=(HtmlElement)page.getBody().getByXPath(xpath).get(0);   //只取第一个
                 String content=element.getTextContent().trim();
 
-                //3.计算SHA-256
-                String s=title+content;    //利用标题和内容计算 sha256 的值
-                //  messageDigest.update（）; 方法要求传入一个 bute[] 类型的数组
+                //3.计算 SHA-256 的值
+                String s=title+content;    //利用 标题和正文 计算 sha256 的值
+                     //  messageDigest.update（）; 方法要求传入一个 byte[] 类型的数组
                 messageDigest.update(s.getBytes("UTF-8"));     //先把要加密的内容放进去
-                byte[] result=messageDigest.digest();     //得到 sha256 的值
+                byte[] result=messageDigest.digest();          //得到加密后的值
+
                 StringBuilder sha256=new StringBuilder();
                 for(byte b:result){
                     sha256.append(String.format("%02x",b));    //UTF-8 一个字节占两位
@@ -97,8 +100,9 @@ public class ThreadPoolCatch2 {
                 //4.计算分词
                 List<Term> termList=new ArrayList<>();      //每个词都是一个 Term
                 // NlpAnalysis.parse(title).getTerms() 的返回值是 List
-                termList.addAll(NlpAnalysis.parse(title).getTerms());       //根据标题和内容进行分词
+                termList.addAll(NlpAnalysis.parse(title).getTerms());       //根据标题和正文进行分词
                 termList.addAll(NlpAnalysis.parse(content).getTerms());
+
                 List<String> words=new ArrayList<>();  //存储最终的词
                 for(Term term:termList){
                     if(term.getNatureStr().equals("w")){
@@ -153,6 +157,7 @@ public class ThreadPoolCatch2 {
     public static void main(String[] args) throws Exception {
         //创建一个固定大小的线程池
         ExecutorService pool=Executors.newFixedThreadPool(30);
+
         WebClient webClient=new WebClient(BrowserVersion.CHROME);
         webClient.getOptions().setJavaScriptEnabled(false);
         webClient.getOptions().setCssEnabled(false);
@@ -163,41 +168,41 @@ public class ThreadPoolCatch2 {
         //存储每一个详情页的完整 URL
         List<String> detailUrlList=new ArrayList<>();
 
-        //0.列表页的请求和解析放在主线程
+        //0.列表页的请求和解析放在主线程去做
         {
-            String url=baseUrl+pathUrl;   //列表页的完整 URL
+            String url=baseUrl+pathUrl;               //列表页的 URL
             HtmlPage page=webClient.getPage(url);     //请求列表页
             List<HtmlElement> divs=page.getBody().getElementsByAttribute("div","class","typecont");
 
-            /* divs 中的内容
-            HtmlDivision[<div class="typecont">]
-            HtmlDivision[<div class="typecont">]
-            HtmlDivision[<div class="typecont">]
-            HtmlDivision[<div class="typecont">]
-            HtmlDivision[<div class="typecont">]
-            HtmlDivision[<div class="typecont">]
-            HtmlDivision[<div class="typecont" style="border:0px;">]
+            /* divs 中的内容：
+                  HtmlDivision[<div class="typecont">]
+                  HtmlDivision[<div class="typecont">]
+                  HtmlDivision[<div class="typecont">]
+                  HtmlDivision[<div class="typecont">]
+                  HtmlDivision[<div class="typecont">]
+                  HtmlDivision[<div class="typecont">]
+                  HtmlDivision[<div class="typecont" style="border:0px;">]
              */
 
             for(HtmlElement div:divs){
                 List<HtmlElement> as=div.getElementsByTagName("a");
 
-                /* as 中的内容
-                HtmlAnchor[<a href="/shiwenv_45c396367f59.aspx" target="_blank">]
-                HtmlAnchor[<a href="/shiwenv_c90ff9ea5a71.aspx" target="_blank">]
-                HtmlAnchor[<a href="/shiwenv_5917bc6dca91.aspx" target="_blank">]
-                HtmlAnchor[<a href="/shiwenv_f324eea45183.aspx" target="_blank">]
-                HtmlAnchor[<a href="/shiwenv_8d889937d1fe.aspx" target="_blank">]
+                /* as 中的内容：
+                      HtmlAnchor[<a href="/shiwenv_45c396367f59.aspx" target="_blank">]
+                      HtmlAnchor[<a href="/shiwenv_c90ff9ea5a71.aspx" target="_blank">]
+                      HtmlAnchor[<a href="/shiwenv_5917bc6dca91.aspx" target="_blank">]
+                      HtmlAnchor[<a href="/shiwenv_f324eea45183.aspx" target="_blank">]
+                      HtmlAnchor[<a href="/shiwenv_8d889937d1fe.aspx" target="_blank">]
                  */
 
-                for(HtmlElement a:as){          //返回 href 属性对应的值（即：详情页的后半部分 url）
-                    String detailUrl=a.getAttribute("href");
-                    detailUrlList.add(baseUrl+detailUrl);  //将每一个详情页的完整 url 加入到 List 列表中
+                for(HtmlElement a:as){
+                    String detailUrl=a.getAttribute("href");    //返回 href 属性对应的值（即：详情页的后半部分 url）
+                    detailUrlList.add(baseUrl+detailUrl);     //将每一个详情页的完整 url 加入到 List 列表中
                 }
             }
         }
 
-        //1.建立数据库连接
+        //1.建立数据源
         MysqlConnectionPoolDataSource dataSource=new MysqlConnectionPoolDataSource();  //这个带有连接池
         dataSource.setServerName("127.0.0.1");
         dataSource.setPort(3306);
@@ -207,14 +212,14 @@ public class ThreadPoolCatch2 {
         dataSource.setUseSSL(false);
         dataSource.setCharacterEncoding("UTF-8");
 
-        System.out.println("一共有多少首诗？"+detailUrlList.size());
+        System.out.println("一共有多少首诗？"+detailUrlList.size());    //320
 
         //2.详情页的请求和解析（要进行 320 次，把任务放到线程池中，交给线程池的线程去执行）
         for(String url:detailUrlList){
             pool.execute(new Job(url,dataSource));
         }
 
-        //当插入成功与插入失败的个数 < 总的个数
+        //当插入成功与插入失败的个数和 < 总的个数
         while(successCount.get()+failureCount.get()<detailUrlList.size()){
             // 没有加 \n 表示只回头，不换行，每次都覆盖上次的数据
             System.out.printf("一共 %d 首诗，成功插入 %d 首诗\r",detailUrlList.size(),successCount.get());
@@ -223,7 +228,8 @@ public class ThreadPoolCatch2 {
         System.out.println();
 
         System.out.println("全部上传成功");
-        //
+
+        //显示让线程池关闭
         pool.shutdown();
     }
 }
