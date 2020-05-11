@@ -1,7 +1,7 @@
 /*
     为了提高爬虫的效率，改为多线程版本
-    列表页的请求和解析在主线程中去做
-    详情页的请求和解析在多线程中去做
+    列表页的请求和解析在主线程中去做（因为只执行一次）
+    详情页的请求和解析在多线程中去做（因为需要执行320次）
     提取诗词信息（标题，作者，内容），计算 sha256 的值，计算分词，信息插入数据库等步骤放到多线程中去做（因为 320 首唐诗每一首都要走一遍这个流程，耗时）
  */
 import com.gargoylesoftware.htmlunit.BrowserVersion;
@@ -12,6 +12,7 @@ import com.gargoylesoftware.htmlunit.html.HtmlPage;
 
 import java.io.UnsupportedEncodingException;
 import java.net.MalformedURLException;
+import java.security.NoSuchAlgorithmException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import com.mysql.jdbc.jdbc2.optional.MysqlConnectionPoolDataSource;
@@ -29,20 +30,18 @@ import java.util.List;
 public class MultipleThreadCatch {
     //自定义的一个线程类
     private static class Job implements Runnable{
-        private String url;                      //详情页的 url
-        private  MessageDigest messageDigest;   // sha256算法（不想多次初始化，从主线程中直接传）
-        private DataSource dataSource;          // 数据库数据源（不想多次初始化，从主线程中直接传）
+        private String url;               //详情页的 url
+        private DataSource dataSource;   //数据库数据源（不想多次初始化，从主线程中直接传）
 
-        public Job(String url, MessageDigest messageDigest, DataSource dataSource) {
+        public Job(String url, DataSource dataSource) {
             this.url = url;
-            this.messageDigest = messageDigest;
             this.dataSource = dataSource;
         }
 
         //线程体
         public void run(){
+            // WebClient 不是线程安全的，每个线程创建自己的 WebClient 对象就可以保证使用时是安全的
             WebClient webClient=new WebClient(BrowserVersion.CHROME);
-            // WebClient 不是线程安全的，每个线程创建自己的 WebClient 就可以保证使用时是安全的
             webClient.getOptions().setJavaScriptEnabled(false);
             webClient.getOptions().setCssEnabled(false);
 
@@ -53,15 +52,15 @@ public class MultipleThreadCatch {
 
                 //标题
                 xpath="//div[@class='cont']/h1/text()";
-                domText=(DomText)page.getBody().getByXPath(xpath).get(0);   //只取第一个h1标签
+                domText=(DomText)page.getBody().getByXPath(xpath).get(0);    //只取 List 列表的第一个，因为 h1 标签在整个 body 中不止一个
                 String title=domText.asText();
 
-                //朝代
+                //朝代（第一个 a 标签）
                 xpath="//div[@class='cont']/p[@class='source']/a[1]/text()";
                 domText=(DomText)page.getBody().getByXPath(xpath).get(0);   //只取第一个
                 String dynasty=domText.asText();
 
-                //作者
+                //作者（第二个 a 标签）
                 xpath="//div[@class='cont']/p[@class='source']/a[2]/text()";
                 domText=(DomText)page.getBody().getByXPath(xpath).get(0);   //只取第一个
                 String author=domText.asText();
@@ -69,21 +68,24 @@ public class MultipleThreadCatch {
                 //正文
                 xpath="//div[@class='cont']/div[@class='contson']";
                 HtmlElement element=(HtmlElement)page.getBody().getByXPath(xpath).get(0);   //只取第一个
-                String content=element.getTextContent().trim();
+                String content=element.getTextContent().trim();   //去掉正文两边的空格
+
+                //引入 SHA-256 哈希算法
+                MessageDigest messageDigest=MessageDigest.getInstance("SHA-256");
 
                 //3.计算 SHA-256 的值
-                String s=title+content;   //利用标题和内容计算 sha256 的值
+                String s=title+content;   //利用 标题和正文 计算 SHA-256 的值
                 messageDigest.update(s.getBytes("UTF-8"));   //先把内容放进去
-                byte[] result=messageDigest.digest();    //得到 sha256 的值
+                byte[] result=messageDigest.digest();                      //得到加密后的值
                 StringBuilder sha256=new StringBuilder();
                 for(byte b:result){
-                    sha256.append(String.format("%02x",b));  //UTF-8 一个字节占两位
+                    sha256.append(String.format("%02x",b));           //UTF-8 一个字节占两位
                 }
 
                 //4.计算分词
-                List<Term> termList=new ArrayList<>();   //每一个词都是一个 Term
+                List<Term> termList=new ArrayList<>();    //每一个词都是一个 Term
                 // NlpAnalysis.parse(title).getTerms() 的返回值是 List
-                termList.addAll(NlpAnalysis.parse(title).getTerms());     //根据标题和内容进行分词
+                termList.addAll(NlpAnalysis.parse(title).getTerms());     //根据标题和正文进行分词
                 termList.addAll(NlpAnalysis.parse(content).getTerms());
 
                 List<String> words=new ArrayList<>();  //存储最终的词
@@ -108,6 +110,7 @@ public class MultipleThreadCatch {
                     String sql="insert into tangshi(sha256,dynasty,author,title,content,words) values(?,?,?,?,?,?)";
                     try(PreparedStatement statement=connection.prepareStatement(sql)){
                         //PreparedStatement 不是线程安全的，每个线程创建自己的 PreparedStatement 对象就可保证线程安全
+
                         statement.setString(1, sha256.toString());    //sha256 的原类型是 String Builder
                         statement.setString(2, dynasty);
                         statement.setString(3, author);
@@ -124,6 +127,8 @@ public class MultipleThreadCatch {
                 e.printStackTrace();
             } catch (SQLException e) {
                 e.printStackTrace();
+            } catch (NoSuchAlgorithmException e) {
+                e.printStackTrace();
             }
         }
     }
@@ -139,31 +144,31 @@ public class MultipleThreadCatch {
         //存储每一个详情页的完整 URL
         List<String> detailUrlList=new ArrayList<>();
 
-        //0.列表页的请求和解析放在主线程中去做（该操作只发生一次，所以不用放到多线程中去）
+        //0.列表页的请求和解析放在主线程中去做（该操作只发生一次，所以不用放到多线程中去完成）
         {
-            String url=baseUrl+pathUrl;   //列表页的完整 URL
+            String url=baseUrl+pathUrl;             //列表页的完整 URL
             HtmlPage page=webClient.getPage(url);   //请求列表页
             List<HtmlElement> divs=page.getBody().getElementsByAttribute("div","class","typecont");
 
-            /* divs 中的内容
-            HtmlDivision[<div class="typecont">]
-            HtmlDivision[<div class="typecont">]
-            HtmlDivision[<div class="typecont">]
-            HtmlDivision[<div class="typecont">]
-            HtmlDivision[<div class="typecont">]
-            HtmlDivision[<div class="typecont">]
-            HtmlDivision[<div class="typecont" style="border:0px;">]
+            /* divs 中的内容：
+                  HtmlDivision[<div class="typecont">]
+                  HtmlDivision[<div class="typecont">]
+                  HtmlDivision[<div class="typecont">]
+                  HtmlDivision[<div class="typecont">]
+                  HtmlDivision[<div class="typecont">]
+                  HtmlDivision[<div class="typecont">]
+                  HtmlDivision[<div class="typecont" style="border:0px;">]
              */
 
             for(HtmlElement div:divs){
                 List<HtmlElement> as=div.getElementsByTagName("a");
 
-                /* as 中的内容
-                HtmlAnchor[<a href="/shiwenv_45c396367f59.aspx" target="_blank">]
-                HtmlAnchor[<a href="/shiwenv_c90ff9ea5a71.aspx" target="_blank">]
-                HtmlAnchor[<a href="/shiwenv_5917bc6dca91.aspx" target="_blank">]
-                HtmlAnchor[<a href="/shiwenv_f324eea45183.aspx" target="_blank">]
-                HtmlAnchor[<a href="/shiwenv_8d889937d1fe.aspx" target="_blank">]
+                /* as 中的内容：
+                       HtmlAnchor[<a href="/shiwenv_45c396367f59.aspx" target="_blank">]
+                       HtmlAnchor[<a href="/shiwenv_c90ff9ea5a71.aspx" target="_blank">]
+                       HtmlAnchor[<a href="/shiwenv_5917bc6dca91.aspx" target="_blank">]
+                       HtmlAnchor[<a href="/shiwenv_f324eea45183.aspx" target="_blank">]
+                       HtmlAnchor[<a href="/shiwenv_8d889937d1fe.aspx" target="_blank">]
                  */
 
                 for(HtmlElement a:as){
@@ -173,7 +178,7 @@ public class MultipleThreadCatch {
             }
         }
 
-        //1.建立数据库连接
+        //1.建立数据源
         MysqlConnectionPoolDataSource dataSource=new MysqlConnectionPoolDataSource();  //这个带有连接池
         dataSource.setServerName("127.0.0.1");
         dataSource.setPort(3306);
@@ -183,13 +188,10 @@ public class MultipleThreadCatch {
         dataSource.setUseSSL(false);
         dataSource.setCharacterEncoding("UTF-8");
 
-        //引入 sha-256 哈希算法
-        MessageDigest messageDigest=MessageDigest.getInstance("SHA-256");
-
-        //2.详情页的请求和解析（要进行 320 次，采用多线程方式去执行任务）
+        //2.详情页的请求和解析（要进行 320 次，所以采用多线程方式去完成任务）
         for(String url:detailUrlList){
-            Thread thread=new Thread(new Job(url,messageDigest,dataSource));
-            //把详情页的 url，sha256算法，数据库的数据源传进去
+            Thread thread=new Thread(new Job(url,dataSource));
+            //把详情页的 url，SHA-256算法，数据库的数据源传进去
 
             thread.start();    //启动一个线程
         }
