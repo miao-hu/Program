@@ -14,11 +14,11 @@ public class CountDownLatchDemo {
         public void run() {
             Random random = new Random();
             try {
-                Thread.sleep(random.nextInt(30) * 1000);   //线程沉睡 0-3 秒
+                Thread.sleep(random.nextInt(30) * 1000);   //线程随机沉睡 0-3 秒
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
-            countDownLatch.countDown();   //每次减1  （原来最初为 10）
+            countDownLatch.countDown();   //CountDownLatch 对象的属性值每次减1  （原来最初为 10）
             System.out.println("一个线程的任务结束了");
         }
     }
@@ -31,7 +31,7 @@ public class CountDownLatchDemo {
         }
 
         System.out.println("等待10个线程全部结束");
-        countDownLatch.await();   // 一直等到 CountDownLatch 对象的属性值为 0
+        countDownLatch.await();   // 一直等到 CountDownLatch 对象的属性值为 0 才执行下面的内容
         System.out.println("10个线程全部结束了");
     }
 }
