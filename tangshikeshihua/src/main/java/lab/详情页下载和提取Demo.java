@@ -17,12 +17,12 @@ public class 详情页下载和提取Demo {
             webClient.getOptions().setCssEnabled(false);
             webClient.getOptions().setJavaScriptEnabled(false);
 
-            String url="https://so.gushiwen.org/shiwenv_45c396367f59.aspx";
-            HtmlPage page=webClient.getPage(url);    //请求该网址
+            String url="https://so.gushiwen.org/shiwenv_45c396367f59.aspx";   //详情页 URL
+            HtmlPage page=webClient.getPage(url);    //请求该 URL 对应的页面
 
-            HtmlElement body=page.getBody();  //得到该网页的 body 部分
+            HtmlElement body=page.getBody();  //得到该页面的 body 部分内容
 
-            /*  第一种方法提取古诗的内容部分
+            /* 第一种方法提取古诗的内容：
                     List<HtmlElement> elements=body.getElementsByAttribute(
                            "div",
                            "class",
@@ -42,37 +42,39 @@ public class 详情页下载和提取Demo {
                     System.out.println(elements.get(0).getTextContent().trim());
             */
 
-            //第二种方法X-Path
+            //第二种方法获取诗的相关内容 X-Path
             //标题
             {
                 String xpath="//div[@class='cont']/h1/text()";
                 //   public <T> List<T> getByXPath(final String xpathExpr);
-                Object o=body.getByXPath(xpath).get(0);   //只取 List 列表的第一个（第一个h1标签，因为 h1 标签不止一个）
+                Object o=body.getByXPath(xpath).get(0);   //只取 List 列表的第一个（第一个h1标签，因为 h1 标签在整个 body 中不止一个）
                 DomText domText=(DomText)o;
-                System.out.println(domText.asText());  //打印出标题
+                System.out.println(domText.asText());     //打印出标题
             }
-            //朝代
-            {   //第一个a标签
-                String xpath="//div[@class='cont']/p[@class='source']/a[1]/text()";
 
+            //朝代
+            {   //第一个 a 标签
+                String xpath="//div[@class='cont']/p[@class='source']/a[1]/text()";
                 Object o=body.getByXPath(xpath).get(0);   //只取 List 列表的第一个
                 DomText domText=(DomText)o;
                 System.out.println(domText.asText());
             }
+
             //作者
             {
-                //第二个a标签
+                //第二个 a 标签
                 String xpath="//div[@class='cont']/p[@class='source']/a[2]/text()";
                 Object o=body.getByXPath(xpath).get(0);   //只取 List 列表的第一个
                 DomText domText=(DomText)o;
                 System.out.println(domText.asText());
             }
+
             //正文
             {
                 String xpath="//div[@class='cont']/div[@class='contson']";
                 Object o=body.getByXPath(xpath).get(0);    //只取 List 列表的第一个
                 HtmlElement element=(HtmlElement)o;
-                System.out.println(element.getTextContent().trim());
+                System.out.println(element.getTextContent().trim());    //去掉正文前后的空格
             }
         }
     }
